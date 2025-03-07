@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import Veterinarian from "../models/Veterinarian.js";
+import { Veterinarian } from "../models/Veterinarian.js";
 
 const vetRouter = express.Router();
 
@@ -16,9 +16,9 @@ const upload = multer({ storage });
 // @desc    Add new veterinarian
 vetRouter.post("/", upload.single("photo"), async (req, res) => {
   try {
-    const { name, email, phone, specialization, experience } = req.body;
+    const { name, email, phone, specialization, experience, fee, bio } = req.body;
 
-    if (!name || !email || !phone || !specialization || !experience) {
+    if (!name || !email || !phone || !specialization || !experience || !fee || !bio) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -33,6 +33,8 @@ vetRouter.post("/", upload.single("photo"), async (req, res) => {
       phone,
       specialization,
       experience,
+      fee,
+      bio,
       image: req.file ? `/uploads/${req.file.filename}` : null,
     });
 
@@ -56,4 +58,4 @@ vetRouter.get("/", async (req, res) => {
   }
 });
 
-export default vetRouter;
+export { vetRouter };

@@ -11,4 +11,4 @@ const veterinarianSchema = new mongoose.Schema({
   image: { type: String }, // Path to the uploaded image
 });
 
-export default mongoose.model("Veterinarian", veterinarianSchema);
+export const Veterinarian = mongoose.model("Veterinarian", veterinarianSchema);
