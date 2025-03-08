@@ -3,8 +3,20 @@ import express from "express";
 import { User, validateUser } from "../models/user.js";
 import _ from "lodash";
 import bcrypt from "bcrypt";
+import auth from "../middleware/auth.js";
 
 const userRouter = express.Router();
+
+userRouter.get("/", async (req, res) => {
+  try {
+    const users = await User.find().select("name email");
+    console.log(users);
+    res.send(users);
+  }
+  catch (error) {
+    res.status(500).send("Internal Server Error");
+  }  
+});
 
 userRouter.post("/", async (req, res) => {
   const { error } = validateUser(req.body);
@@ -29,5 +41,6 @@ userRouter.post("/", async (req, res) => {
 
   res.header('x-auth-token', token).send(_.pick(user, ["_id", "name", "email"]));
 });
+
 
 export default userRouter;

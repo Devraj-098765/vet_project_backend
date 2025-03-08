@@ -5,28 +5,28 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import path from "path";
-import fs from "fs"; // Ensure 'uploads' directory exists
+import fs from "fs";
 
-// ✅ Corrected import paths
 import routerHome from "../routes/home.js";
 import userRouter from "../routes/users.js";
 import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
-import { vetRouter } from "../routes/vetRoutes.js"; // ✅ FIXED import
+import { vetRouter } from "../routes/vetRoutes.js";
 import seedAdmin from "../scripts/seedAdmin.js";
 
 const app = express();
 app.use(express.json());
 
-// ✅ Ensure 'uploads' directory exists
+// ✅ Ensure Uploads Directory Exists
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+  fs.mkdirSync(uploadsDir, { recursive: true }); // Ensure recursive creation
+  console.log("📂 Created 'uploads' directory.");
 }
 
-// ✅ Allow static files (Uploaded images)
 app.use("/uploads", express.static(uploadsDir));
 
+// ✅ CORS Configuration
 app.use(
   cors({
     exposedHeaders: ["x-auth-token"],
@@ -35,18 +35,18 @@ app.use(
 
 // ✅ Check JWT Private Key
 if (!process.env.JWT_PRIVATE_KEY) {
-  console.error("❌ FATAL ERROR: JWT_PRIVATE_KEY is not defined");
+  console.error("FATAL ERROR: JWT_PRIVATE_KEY is not defined");
   process.exit(1);
 }
 
-// Define routes
+// ✅ Define API Routes
 app.use("/", routerHome);
 app.use("/api/users", userRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminAuthRouter);
 app.use("/api/veterinarians", vetRouter);
 
-// ✅ Connect to MongoDB
+// ✅ MongoDB Connection
 const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/VetCareDB";
 const port = process.env.PORT || 3001;
 
@@ -55,20 +55,37 @@ const connectDB = async () => {
     await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      autoIndex: true, // Ensures indexes are created automatically
     });
-    console.log("✅ Connected to MongoDB");
+    console.log(" Connected to MongoDB");
 
-    // ✅ Ensure admin seeding runs only after DB connection
-    await seedAdmin();
+    // ✅ Seed Admin (Wrap in Try-Catch)
+    try {
+      await seedAdmin();
+      console.log("Admin seeding completed.");
+    } catch (err) {
+      console.error(" Error seeding admin:", err);
+    }
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err);
+    console.error(" MongoDB Connection Error:", err);
     process.exit(1); // Exit if DB connection fails
   }
 };
 
-// Start server
+// ✅ Global Error Handlers (Prevent Crashes)
+process.on("unhandledRejection", (err) => {
+  console.error(" UNHANDLED REJECTION:", err);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+  process.exit(1);
+});
+
+// ✅ Start Server
 connectDB().then(() => {
   app.listen(port, () => {
-    console.log(`🚀 Server is running on port ${port}`);
+    console.log(`🚀 Server running on http://localhost:${port}`);
   });
 });

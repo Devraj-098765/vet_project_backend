@@ -14,7 +14,7 @@ const upload = multer({ storage });
 
 // @route   POST /api/veterinarians
 // @desc    Add new veterinarian
-vetRouter.post("/", upload.single("photo"), async (req, res) => {
+vetRouter.post("/", upload.single("image"), async (req, res) => {
   try {
     const { name, email, phone, specialization, experience, fee, bio } = req.body;
 
@@ -35,7 +35,7 @@ vetRouter.post("/", upload.single("photo"), async (req, res) => {
       experience,
       fee,
       bio,
-      image: req.file ? `/uploads/${req.file.filename}` : null,
+      image: req.file ? `/uploads/${req.file.filename}` : null, // Store image path
     });
 
     await newVeterinarian.save();

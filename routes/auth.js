@@ -20,8 +20,7 @@ authRouter.post("/", async (req, res) => {
     return res.status(400).json({ message: "Invalid email or password" });
 
   const token = user.generateAuthToken();
-  
-
+  console.log("Generated Token:", token);
   res.header("x-auth-token", token).send(token);
 });
 
