@@ -3,6 +3,7 @@ import { Admin } from "../models/admin.js";
 import _ from "lodash";
 import bcrypt from "bcrypt";
 import { z } from "zod";
+import c from "config";
 
 const adminAuthRouter = express.Router();
 
@@ -23,6 +24,7 @@ adminAuthRouter.post("/", async (req, res) => {
 
     // generate token && send it at the header
     const token = admin.generateAuthToken();
+    console.log("Generated Token:", token); // Debugging
     res.header("x-auth-token", token).send(token);
 });
 
