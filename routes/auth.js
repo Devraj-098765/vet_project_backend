@@ -21,9 +21,13 @@ authRouter.post("/", async (req, res) => {
 
   const token = user.generateAuthToken();
   console.log("Generated Token:", token);
-  res.header("x-auth-token", token).send(token);
-});
 
+  // res.header("x-auth-token", token).json({
+  //   token: token,
+  //   user: _.pick(user, ["_id", "name", "email"]), // Include only necessary user details
+  // });
+    res.header('x-auth-token', token).send(_.pick(user, ["_id", "email"]));
+});
 const validate = (user) => {
   const schema = z.object({
     email: z.string().email({ message: "Invalid email format"}).min(5, { message: "email is required" }).max(255),
