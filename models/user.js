@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import { z } from "zod";
 import jsonwebtoken from "jsonwebtoken";
 
 const userSchema = new mongoose.Schema({
@@ -25,13 +24,17 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.methods.generateAuthToken = function () {
-  const token = jsonwebtoken.sign({ _id: this._id }, process.env.JWT_PRIVATE_KEY);
+  const token = jsonwebtoken.sign(
+    { _id: this._id, name: this.name, email: this.email }, // Include name and email
+    process.env.JWT_PRIVATE_KEY
+  );
   return token;
 };
 
 const User = mongoose.model("User", userSchema);
 
 const validateUser = (user) => {
+  // Your existing validation logic with Zod
   const schema = z.object({
     name: z.string().min(1, { message: "name is required" }).max(50),
     email: z.string().email().min(5, { message: "email is required" }).max(255),
