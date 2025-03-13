@@ -12,6 +12,7 @@ import userRouter from "../routes/users.js";
 import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
 import { vetRouter } from "../routes/vetRoutes.js";
+import bookingRouter from "../routes/bookings.js";
 import seedAdmin from "../scripts/seedAdmin.js";
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/users", userRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminAuthRouter);
 app.use("/api/veterinarians", vetRouter);
+app.use("/api/bookings", bookingRouter);
 
 // ✅ MongoDB Connection
 const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/VetCareDB";
@@ -86,6 +88,6 @@ process.on("uncaughtException", (err) => {
 // ✅ Start Server
 connectDB().then(() => {
   app.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
+    console.log(` Server running on http://localhost:${port}`);
   });
 });
