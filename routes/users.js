@@ -1,12 +1,11 @@
 import express from "express";
 import { User, validateUser } from "../models/user.js";
 import _ from "lodash";
-import bcrypt from "bcrypt";
-import auth from "../middleware/auth.js";
+import  auth  from "../middleware/auth.js"
 
 const userRouter = express.Router();
 
-userRouter.get("/", async (req, res) => {
+userRouter.get("/", auth, async (req, res) => {
   try {
     const users = await User.find().select("name email");
     console.log(users);
@@ -16,26 +15,20 @@ userRouter.get("/", async (req, res) => {
   }  
 });
 
-userRouter.post("/", async (req, res) => {
+userRouter.put("/:id", auth, async (req, res) => {
   const { error } = validateUser(req.body);
   if (error) return res.status(400).json({ errors: error.errors });
 
-  let user = await User.findOne({ email: req.body.email });
-  if (user) return res.status(400).send("User already registered");
+  const user = await User.findByIdAndUpdate(req.params.id, {
+    name: req.body.name,
+    email: req.body.email,
+    password: req.body.password
+  }, { new: true })
 
-  user = new User(_.pick(req.body, ["name", "email", "password"]));
-  const salt = await bcrypt.genSalt(10);
-  user.password = await bcrypt.hash(user.password, salt);
-  await user.save();
+  if (!user)
+    return res.status(404).send("The user with the given Id was not found")
 
-  const token = user.generateAuthToken();
-  console.log("Generated Token:", token);
-
-  if (token.includes("\n")) {
-    console.error("Token contains newline characters!");
-  }
-
-  res.header('x-auth-token', token).send(_.pick(user, ["_id", "name", "email"]));
-});
+  res.send(user)
+})
 
 export default userRouter;
