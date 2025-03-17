@@ -9,6 +9,7 @@ import fs from "fs";
 
 import routerHome from "../routes/home.js";
 import userRouter from "../routes/users.js";
+import signupRouter from "../routes/signup.js";
 import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
 import { vetRouter } from "../routes/vetRoutes.js";
@@ -43,6 +44,7 @@ if (!process.env.JWT_PRIVATE_KEY) {
 // ✅ Define API Routes
 app.use("/", routerHome);
 app.use("/api/users", userRouter);
+app.use("/api/signup", signupRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminAuthRouter);
 app.use("/api/veterinarians", vetRouter);
