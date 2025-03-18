@@ -10,7 +10,8 @@ const veterinarianSchema = new mongoose.Schema({
   fee: { type: Number, required: true },
   experience: { type: String, required: true },
   password: { type: String, required: true},
-  image: { type: String }, // Path to the uploaded image
+  image: { type: String }, 
+  active: { type: Boolean, default: true }
 });
 
 export const Veterinarian = mongoose.model("Veterinarian", veterinarianSchema);
