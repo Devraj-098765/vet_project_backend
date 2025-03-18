@@ -1,5 +1,6 @@
 import express from "express";
 import multer from "multer";
+import bcrypt from "bcrypt";
 import { Veterinarian } from "../models/Veterinarian.js";
 
 const vetRouter = express.Router();
@@ -16,9 +17,9 @@ const upload = multer({ storage });
 // @desc    Add new veterinarian
 vetRouter.post("/", upload.single("image"), async (req, res) => {
   try {
-    const { name, email, phone, specialization, experience, fee, bio } = req.body;
+    const { name, email, phone, specialization, experience, fee, bio, password } = req.body;
 
-    if (!name || !email || !phone || !specialization || !experience || !fee || !bio) {
+    if (!name || !email || !phone || !specialization || !experience || !fee || !bio || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -35,6 +36,7 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       experience,
       fee,
       bio,
+      password, // Hashed in pre-save middleware
       image: req.file ? `/uploads/${req.file.filename}` : null, // Store image path
     });
 
@@ -50,7 +52,7 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
 // @desc    Get all veterinarians
 vetRouter.get("/", async (req, res) => {
   try {
-    const veterinarians = await Veterinarian.find();
+    const veterinarians = await Veterinarian.find().select("-password"); // Exclude password
     res.json(veterinarians);
   } catch (error) {
     console.error("❌ Error fetching veterinarians:", error);

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 
 const veterinarianSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -8,6 +9,7 @@ const veterinarianSchema = new mongoose.Schema({
   bio: { type: String, required: true },
   fee: { type: Number, required: true },
   experience: { type: String, required: true },
+  password: { type: String, required: true},
   image: { type: String }, // Path to the uploaded image
 });
 
