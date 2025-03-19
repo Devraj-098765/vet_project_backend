@@ -1,12 +1,28 @@
 import express from 'express';
 import Booking from '../models/booking.js';
+import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Create a new booking
-router.post('/', async (req, res) => {
+// Get user's appointment history
+router.get('/history', auth, async (req, res) => {
   try {
-    const booking = new Booking(req.body);
+    const bookings = await Booking.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    console.log('User bookings:', bookings);
+    res.json(bookings);
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    res.status(500).json({ error: 'Failed to fetch appointment history', details: error.message });
+  }
+});
+
+// Create a new booking
+router.post('/', auth, async (req, res) => {
+  try {
+    const booking = new Booking({
+      ...req.body,
+      userId: req.user._id,
+    });
     await booking.save();
     res.status(201).json({ 
       message: 'Booking created successfully',
@@ -14,20 +30,24 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating booking:', error);
-    res.status(500).json({ 
-      error: 'Failed to create booking',
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Failed to create booking', details: error.message });
   }
 });
 
-// Get all bookings (optional, for verification)
-router.get('/', async (req, res) => {
+// Cancel (delete) an appointment
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const bookings = await Booking.find();
-    res.json(bookings);
+    const booking = await Booking.findOneAndDelete({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    });
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found or not authorized' });
+    }
+    res.json({ message: 'Appointment canceled successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch bookings' });
+    console.error('Error canceling appointment:', error);
+    res.status(500).json({ error: 'Failed to cancel appointment', details: error.message });
   }
 });
 
