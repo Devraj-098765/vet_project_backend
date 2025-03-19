@@ -1,5 +1,6 @@
 import express from "express";
 import multer from "multer";
+import bcrypt from "bcrypt"; // Import bcrypt for password hashing
 import { Veterinarian } from "../models/Veterinarian.js";
 
 const vetRouter = express.Router();
@@ -16,17 +17,24 @@ const upload = multer({ storage });
 // @desc    Add new veterinarian
 vetRouter.post("/", upload.single("image"), async (req, res) => {
   try {
-    const { name, email, phone, specialization, experience, fee, bio } = req.body;
+    // ✅ Extract password from req.body
+    const { name, email, phone, specialization, experience, fee, bio, password } = req.body;
 
-    if (!name || !email || !phone || !specialization || !experience || !fee || !bio) {
-      return res.status(400).json({ message: "All fields are required" });
+    // ✅ Check if all required fields are provided
+    if (!name || !email || !phone || !specialization || !experience || !fee || !bio || !password) {
+      return res.status(400).json({ message: "All fields are required, including password" });
     }
 
+    // ✅ Check if veterinarian already exists
     const existingVet = await Veterinarian.findOne({ email });
     if (existingVet) {
       return res.status(400).json({ message: "Veterinarian already exists" });
     }
 
+    // ✅ Hash the password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // ✅ Create a new veterinarian object
     const newVeterinarian = new Veterinarian({
       name,
       email,
@@ -35,10 +43,11 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       experience,
       fee,
       bio,
-      password,
-      image: req.file ? `/uploads/${req.file.filename}` : null, // Store image path
+      password: hashedPassword, // Store hashed password
+      image: req.file ? `/uploads/${req.file.filename}` : null, // Store image path if uploaded
     });
 
+    // ✅ Save veterinarian to database
     await newVeterinarian.save();
     res.status(201).json({ message: "Veterinarian added successfully", veterinarian: newVeterinarian });
   } catch (error) {
