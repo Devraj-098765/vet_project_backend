@@ -11,7 +11,6 @@ const veterinarianSchema = new mongoose.Schema({
   experience: { type: String, required: true },
   password: { type: String, required: true},
   image: { type: String }, 
-  active: { type: Boolean, default: true }
 });
 
 export const Veterinarian = mongoose.model("Veterinarian", veterinarianSchema);
