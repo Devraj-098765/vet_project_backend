@@ -18,7 +18,7 @@ const adminSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ["admin", "restricted"],
+        enum: ["admin", "vetnerian"],
         required: true,
     }
 })
