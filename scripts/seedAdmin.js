@@ -24,4 +24,3 @@ const seedAdmin = async () => {
 };
 
 export default seedAdmin;
-// 
