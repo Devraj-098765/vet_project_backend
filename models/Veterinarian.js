@@ -1,24 +1,5 @@
-// import mongoose from "mongoose";
-// import bcrypt from "bcrypt";
-
-// const veterinarianSchema = new mongoose.Schema({
-//   name: { type: String, required: true },
-//   email: { type: String, required: true, unique: true },
-//   phone: { type: String, required: true },
-//   specialization: { type: String, required: true },
-//   bio: { type: String, required: true },
-//   fee: { type: Number, required: true },
-//   experience: { type: String, required: true },
-//   password: { type: String, required: true},
-//   image: { type: String }, 
-// });
-
-// export const Veterinarian = mongoose.model("Veterinarian", veterinarianSchema);
-
-
-// backend/models/veterinarian.js
 import mongoose from "mongoose";
-import bcrypt from "bcrypt";
+import jsonwebtoken from "jsonwebtoken";
 
 const veterinarianSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -30,6 +11,19 @@ const veterinarianSchema = new mongoose.Schema({
   experience: { type: String, required: true },
   password: { type: String, required: true },
   image: { type: String },
+  role: {
+    type: String,
+    default: "veterinarian",
+  },
 });
 
-export const Veterinarian = mongoose.model("Veterinarian", veterinarianSchema);
+veterinarianSchema.methods.generateAuthToken = function () {
+  const token = jsonwebtoken.sign({ _id: this._id, email: this.email, role: this.role }, process.env.JWT_PRIVATE_KEY, {
+    expiresIn: "1h",
+  });
+  return token;
+};
+
+const Veterinarian = mongoose.model("Veterinarian", veterinarianSchema);
+
+export { Veterinarian };
