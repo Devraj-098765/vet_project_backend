@@ -1,3 +1,4 @@
+
 import express from 'express';
 import Booking from '../models/booking.js';
 import auth from '../middleware/auth.js';
@@ -5,18 +6,34 @@ import { Veterinarian } from '../models/Veterinarian.js';
 
 const router = express.Router();
 
+// Fetch appointments for a specific veterinarian
+router.get('/veterinarian', auth, async (req, res) => {
+  try {
+    const bookings = await Booking.find({ veterinarianId: req.user._id })
+      .populate('userId', 'name email')
+      .sort({ date: 1, time: 1 });
+      console.log(bookings)
+    res.json(bookings);
+  } catch (error) {
+    console.error('Error fetching veterinarian appointments:', error);
+    res.status(500).json({ error: 'Failed to fetch appointments', details: error.message });
+  }
+});
 // Get user's appointment history
 router.get('/history', auth, async (req, res) => {
   try {
+    console.log("Authenticated User ID: ", req.user._id);
     const bookings = await Booking.find({ userId: req.user._id })
       .populate('veterinarianId', 'name image')
       .sort({ createdAt: -1 });
+
     res.json(bookings);
   } catch (error) {
-    console.error('Error fetching history:', error);
-    res.status(500).json({ error: 'Failed to fetch appointment history', details: error.message });
+    console.error("Error fetching history:", error);
+    res.status(500).json({ error: "Failed to fetch appointment history", details: error.message });
   }
 });
+
 
 // Get available time slots for a veterinarian on a specific date
 router.get('/available-slots', async (req, res) => {
@@ -100,6 +117,7 @@ router.delete('/:id', auth, async (req, res) => {
 // Get all bookings for admin (with optional today filter)
 router.get('/admin/bookings', auth, async (req, res) => {
   try {
+    // Uncomment this if you want to restrict to admins only
     // if (req.user.role !== 'admin') {
     //   return res.status(403).json({ error: 'Access denied: Admins only' });
     // }
@@ -165,6 +183,30 @@ router.delete('/admin/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('Error canceling appointment as admin:', error);
     res.status(500).json({ error: 'Failed to cancel appointment', details: error.message });
+  }
+});
+
+// Update appointment status (e.g., mark as completed or cancelled by vet)
+router.put('/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (booking.veterinarianId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to update this booking' });
+    }
+
+    booking.status = status;
+    await booking.save();
+
+    res.json({ message: `Appointment marked as ${status}`, booking });
+  } catch (error) {
+    console.error('Error updating appointment status:', error);
+    res.status(500).json({ error: 'Failed to update appointment status', details: error.message });
   }
 });
 
