@@ -17,7 +17,7 @@ adminAuthRouter.post("/", async (req, res) => {
     let user;
     if (role === "admin") {
       user = await Admin.findOne({ email });
-    } else if (role === "vetnerian") {
+    } else if (role === "veterinarian") {
       user = await Veterinarian.findOne({ email: req.body.email }); 
     } else {
       return res.status(400).json({ message: "Invalid role" });
