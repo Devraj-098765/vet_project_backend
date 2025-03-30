@@ -12,8 +12,16 @@ router.get('/veterinarian', auth, async (req, res) => {
     const bookings = await Booking.find({ veterinarianId: req.user._id })
       .populate('userId', 'name email')
       .sort({ date: 1, time: 1 });
-      console.log(bookings)
-    res.json(bookings);
+
+    // Calculate stats
+    const total = bookings.length;
+    const upcoming = bookings.filter(appt => {
+      const appointmentDate = new Date(`${appt.date} ${appt.time}`);
+      return appointmentDate > new Date() && ['Pending', 'Confirmed'].includes(appt.status);
+    }).length;
+    const pending = bookings.filter(appt => appt.status === 'Pending').length;
+
+    res.json({ bookings, stats: { total, upcoming, pending } });
   } catch (error) {
     console.error('Error fetching veterinarian appointments:', error);
     res.status(500).json({ error: 'Failed to fetch appointments', details: error.message });
