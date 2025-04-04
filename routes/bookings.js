@@ -7,7 +7,7 @@ import { Veterinarian } from '../models/Veterinarian.js';
 const router = express.Router();
 
 // Fetch appointments for a specific veterinarian
-router.get('/veterinarian', async (req, res) => {
+router.get('/veterinarian', auth, async (req, res) => {
   try {
     const bookings = await Booking.find({ veterinarianId: req.user._id })
       .populate('userId', 'name email')
