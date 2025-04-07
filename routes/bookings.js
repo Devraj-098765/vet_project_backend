@@ -1,8 +1,9 @@
-
 import express from 'express';
+import mongoose from 'mongoose'; // Ensure mongoose is imported
 import Booking from '../models/booking.js';
 import auth from '../middleware/auth.js';
 import { Veterinarian } from '../models/Veterinarian.js';
+import Report from '../models/Report.js';
 
 const router = express.Router();
 
@@ -13,7 +14,6 @@ router.get('/veterinarian', auth, async (req, res) => {
       .populate('userId', 'name email')
       .sort({ date: 1, time: 1 });
 
-    // Calculate stats
     const total = bookings.length;
     const upcoming = bookings.filter(appt => {
       const appointmentDate = new Date(`${appt.date} ${appt.time}`);
@@ -23,10 +23,11 @@ router.get('/veterinarian', auth, async (req, res) => {
 
     res.json({ bookings, stats: { total, upcoming, pending } });
   } catch (error) {
-    console.error('Error fetching veterinarian appointments:', error);
+    console.error('Error fetching veterinarian appointments:', error.stack);
     res.status(500).json({ error: 'Failed to fetch appointments', details: error.message });
   }
 });
+
 // Get user's appointment history
 router.get('/history', auth, async (req, res) => {
   try {
@@ -34,20 +35,17 @@ router.get('/history', auth, async (req, res) => {
     const bookings = await Booking.find({ userId: req.user._id })
       .populate('veterinarianId', 'name image')
       .sort({ createdAt: -1 });
-
     res.json(bookings);
   } catch (error) {
-    console.error("Error fetching history:", error);
+    console.error("Error fetching history:", error.stack);
     res.status(500).json({ error: "Failed to fetch appointment history", details: error.message });
   }
 });
-
 
 // Get available time slots for a veterinarian on a specific date
 router.get('/available-slots', async (req, res) => {
   try {
     const { veterinarianId, date } = req.query;
-    
     if (!veterinarianId || !date) {
       return res.status(400).json({ error: 'Veterinarian ID and date are required' });
     }
@@ -68,7 +66,7 @@ router.get('/available-slots', async (req, res) => {
 
     res.json({ availableSlots });
   } catch (error) {
-    console.error('Error fetching available slots:', error);
+    console.error('Error fetching available slots:', error.stack);
     res.status(500).json({ error: 'Failed to fetch available slots', details: error.message });
   }
 });
@@ -100,7 +98,7 @@ router.post('/', auth, async (req, res) => {
       bookingId: booking._id 
     });
   } catch (error) {
-    console.error('Error creating booking:', error);
+    console.error('Error creating booking:', error.stack);
     res.status(500).json({ error: 'Failed to create booking', details: error.message });
   }
 });
@@ -117,25 +115,20 @@ router.delete('/:id', auth, async (req, res) => {
     }
     res.json({ message: 'Appointment canceled successfully' });
   } catch (error) {
-    console.error('Error canceling appointment:', error);
+    console.error('Error canceling appointment:', error.stack);
     res.status(500).json({ error: 'Failed to cancel appointment', details: error.message });
   }
 });
 
-// Get all bookings for admin (with optional today filter)
+// Get all bookings for admin
 router.get('/admin/bookings', auth, async (req, res) => {
   try {
-    // Uncomment this if you want to restrict to admins only
-    // if (req.user.role !== 'admin') {
-    //   return res.status(403).json({ error: 'Access denied: Admins only' });
-    // }
-
-    const today = req.query.today === 'true'; // Check for ?today=true query param
-    const todayDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const today = req.query.today === 'true';
+    const todayDate = new Date().toISOString().split('T')[0];
 
     let query = {};
     if (today) {
-      query.date = todayDate; // Filter by today's date
+      query.date = todayDate;
     }
 
     const bookings = await Booking.find(query)
@@ -143,18 +136,7 @@ router.get('/admin/bookings', auth, async (req, res) => {
       .populate('veterinarianId', 'name image')
       .sort({ createdAt: -1 });
 
-    // Filter out bookings with invalid userId or veterinarianId
-    const validBookings = bookings.filter(booking => {
-      if (!booking.userId) {
-        console.warn(`Booking ${booking._id} has invalid userId: ${booking.userId}`);
-        return false;
-      }
-      if (!booking.veterinarianId) {
-        console.warn(`Booking ${booking._id} has invalid veterinarianId: ${booking.veterinarianId}`);
-        return false;
-      }
-      return true;
-    });
+    const validBookings = bookings.filter(booking => booking.userId && booking.veterinarianId);
 
     const vetBookings = await Promise.all(
       (await Veterinarian.find()).map(async (vet) => {
@@ -171,7 +153,7 @@ router.get('/admin/bookings', auth, async (req, res) => {
 
     res.json(vetBookings.filter((vet) => vet.appointments.length > 0));
   } catch (error) {
-    console.error('Error fetching admin bookings:', error);
+    console.error('Error fetching admin bookings:', error.stack);
     res.status(500).json({ error: 'Failed to fetch bookings', details: error.message });
   }
 });
@@ -189,12 +171,12 @@ router.delete('/admin/:id', auth, async (req, res) => {
     }
     res.json({ message: 'Appointment canceled successfully by admin' });
   } catch (error) {
-    console.error('Error canceling appointment as admin:', error);
+    console.error('Error canceling appointment as admin:', error.stack);
     res.status(500).json({ error: 'Failed to cancel appointment', details: error.message });
   }
 });
 
-// Update appointment status (e.g., mark as completed or cancelled by vet)
+// Update appointment status
 router.put('/:id/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
@@ -213,8 +195,152 @@ router.put('/:id/status', auth, async (req, res) => {
 
     res.json({ message: `Appointment marked as ${status}`, booking });
   } catch (error) {
-    console.error('Error updating appointment status:', error);
+    console.error('Error updating appointment status:', error.stack);
     res.status(500).json({ error: 'Failed to update appointment status', details: error.message });
+  }
+});
+
+// Create a report for a booking (Veterinarian only)
+router.post('/:id/report', auth, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    if (booking.veterinarianId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to create report for this booking' });
+    }
+    const reportData = {
+      bookingId: booking._id,
+      userId: booking.userId,
+      veterinarianId: booking.veterinarianId,
+      petName: booking.petName,
+      petType: booking.petType,
+      ...req.body
+    };
+    const report = new Report(reportData);
+    await report.save();
+    console.log('Report created:', report);
+    res.status(201).json({ message: 'Report created successfully', report });
+  } catch (error) {
+    console.error('Error creating report:', error.stack);
+    res.status(500).json({ error: 'Failed to create report', details: error.message });
+  }
+});
+
+// Get all reports for a user
+router.get('/reports', auth, async (req, res) => {
+  try {
+    console.log('Request received for /bookings/reports');
+    if (!req.user || !req.user._id) {
+      console.log('No user ID in request');
+      return res.status(401).json({ error: 'Authentication failed: No user ID' });
+    }
+    console.log('Authenticated user:', req.user);
+    console.log('Fetching reports for userId:', req.user._id);
+    console.log('Report model available:', typeof Report !== 'undefined');
+
+    // Verify MongoDB connection using imported mongoose
+    const dbState = mongoose.connection.readyState;
+    console.log('MongoDB connection state:', dbState); // 1 = connected
+
+    const reports = await Report.find({ userId: req.user._id })
+      .sort({ createdAt: -1 });
+    console.log('Raw reports:', reports);
+
+    if (reports.length > 0) {
+      try {
+        const populatedReports = await Report.populate(reports, { 
+          path: 'veterinarianId', 
+          select: 'name' 
+        });
+        console.log('Populated reports:', populatedReports);
+        res.json(populatedReports);
+      } catch (popError) {
+        console.warn('Population failed:', popError.message);
+        res.json(reports); // Return unpopulated reports if population fails
+      }
+    } else {
+      console.log('No reports found for this user');
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('Error fetching reports:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch reports', details: error.message });
+  }
+});
+
+// Get a specific booking by ID
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('userId', 'name email')
+      .populate('veterinarianId', 'name');
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    if (booking.userId._id.toString() !== req.user._id.toString() && 
+        booking.veterinarianId._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to view this booking' });
+    }
+    res.json(booking);
+  } catch (error) {
+    console.error('Error fetching booking:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch booking', details: error.message });
+  }
+});
+
+// Get a specific report by ID
+router.get('/report/:id', auth, async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id)
+      .populate('veterinarianId', 'name');
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    if (report.userId.toString() !== req.user._id.toString() && 
+        report.veterinarianId._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to view this report' });
+    }
+    res.json(report);
+  } catch (error) {
+    console.error('Error fetching report:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch report', details: error.message });
+  }
+});
+
+// Edit a report (Veterinarian only)
+router.put('/report/:id', auth, async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    if (report.veterinarianId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to edit this report' });
+    }
+    const updatedReport = await Report.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedAt: Date.now() },
+      { new: true }
+    );
+    res.json({ message: 'Report updated successfully', report: updatedReport });
+  } catch (error) {
+    console.error('Error updating report:', error.stack);
+    res.status(500).json({ error: 'Failed to update report', details: error.message });
+  }
+});
+
+// Get all reports for the authenticated veterinarian
+router.get('/veterinarian/reports', auth, async (req, res) => {
+  try {
+    const reports = await Report.find({ veterinarianId: req.user._id })
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (error) {
+    console.error('Error fetching veterinarian reports:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch veterinarian reports', details: error.message });
   }
 });
 
