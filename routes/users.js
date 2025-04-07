@@ -32,3 +32,5 @@ userRouter.put("/:id", auth, async (req, res) => {
 })
 
 export default userRouter;
+
+
