@@ -14,7 +14,7 @@ import signupRouter from "../routes/signup.js";
 import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
 import { vetRouter } from "../routes/vetRoutes.js";
-import bookingRouter from "../routes/bookings.js"; // Match your file name
+import bookingRouter from "../routes/bookings.js"; 
 import seedAdmin from "../scripts/seedAdmin.js";
 
 const app = express();
@@ -40,14 +40,14 @@ app.use("/uploads", express.static(uploadsDir));
 // CORS Configuration
 app.use(
   cors({
-    origin: "*", // Change this to allow only specific origins in production
+    origin: "*", // Change to specific origin in production (e.g., "http://localhost:5173")
     exposedHeaders: ["x-auth-token"],
   })
 );
 
 // Environment Variable Checks
 if (!process.env.JWT_PRIVATE_KEY) {
-  console.error(" FATAL ERROR: JWT_PRIVATE_KEY is not defined!");
+  console.error("FATAL ERROR: JWT_PRIVATE_KEY is not defined!");
   process.exit(1);
 }
 
@@ -62,7 +62,6 @@ app.use("/api/bookings", bookingRouter);
 
 // MongoDB Connection
 const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/VetCareDB";
-
 const port = process.env.PORT || 3001;
 
 const connectDB = async () => {
@@ -77,12 +76,12 @@ const connectDB = async () => {
     // Seed Admin User
     try {
       await seedAdmin();
-      console.log(" Admin user seeding completed.");
+      console.log("Admin user seeding completed.");
     } catch (err) {
       console.error("Error seeding admin user:", err);
     }
   } catch (err) {
-    console.error(" MongoDB Connection Error:", err);
+    console.error("MongoDB Connection Error:", err);
     process.exit(1);
   }
 };
@@ -94,7 +93,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 process.on("uncaughtException", (err) => {
-  console.error(" UNCAUGHT EXCEPTION:", err);
+  console.error("UNCAUGHT EXCEPTION:", err);
   process.exit(1);
 });
 
