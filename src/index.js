@@ -15,6 +15,7 @@ import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
 import { vetRouter } from "../routes/vetRoutes.js";
 import bookingRouter, { reloadCronJobs } from "../routes/bookings.js";
+import blogRouter from "../routes/blogs.js"; // Add this line
 import seedAdmin from "../scripts/seedAdmin.js";
 
 const app = express();
@@ -59,6 +60,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/admin", adminAuthRouter);
 app.use("/api/veterinarians", vetRouter);
 app.use("/api/bookings", bookingRouter);
+app.use("/api/blogs", blogRouter); // Add this line
 
 // MongoDB Connection
 const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/VetCareDB";
