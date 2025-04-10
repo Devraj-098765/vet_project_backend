@@ -14,7 +14,7 @@ import signupRouter from "../routes/signup.js";
 import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
 import { vetRouter } from "../routes/vetRoutes.js";
-import bookingRouter from "../routes/bookings.js"; 
+import bookingRouter, { reloadCronJobs } from "../routes/bookings.js";
 import seedAdmin from "../scripts/seedAdmin.js";
 
 const app = express();
@@ -79,6 +79,14 @@ const connectDB = async () => {
       console.log("Admin user seeding completed.");
     } catch (err) {
       console.error("Error seeding admin user:", err);
+    }
+
+    // Reload Cron Jobs for Notifications
+    try {
+      await reloadCronJobs();
+      console.log("Cron jobs initialized");
+    } catch (err) {
+      console.error("Error reloading cron jobs:", err);
     }
   } catch (err) {
     console.error("MongoDB Connection Error:", err);

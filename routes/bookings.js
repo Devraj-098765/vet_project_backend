@@ -1,11 +1,16 @@
 import express from 'express';
-import mongoose from 'mongoose'; // Ensure mongoose is imported
+import mongoose from 'mongoose';
+import cron from 'node-cron';
 import Booking from '../models/booking.js';
+import Notification from '../models/notification.js';
 import auth from '../middleware/auth.js';
 import { Veterinarian } from '../models/Veterinarian.js';
 import Report from '../models/Report.js';
 
 const router = express.Router();
+
+// Store scheduled jobs (in-memory for now, can be moved to DB for better persistence)
+const scheduledJobs = new Map();
 
 // Fetch appointments for a specific veterinarian
 router.get('/veterinarian', auth, async (req, res) => {
@@ -71,10 +76,12 @@ router.get('/available-slots', async (req, res) => {
   }
 });
 
-// Create a new booking
+// Create a new booking and schedule reminder
 router.post('/', auth, async (req, res) => {
   try {
     const { veterinarianId, date, time } = req.body;
+
+    console.log('Creating booking with:', { veterinarianId, date, time, userId: req.user._id });
 
     const existingBooking = await Booking.findOne({
       veterinarianId,
@@ -84,6 +91,7 @@ router.post('/', auth, async (req, res) => {
     });
 
     if (existingBooking) {
+      console.log('Slot already booked:', existingBooking);
       return res.status(400).json({ error: 'This time slot is already booked' });
     }
 
@@ -93,15 +101,93 @@ router.post('/', auth, async (req, res) => {
       veterinarianId,
     });
     await booking.save();
-    res.status(201).json({ 
-      message: 'Booking created successfully',
-      bookingId: booking._id 
+    console.log('Booking saved:', booking._id);
+
+    const appointmentDateTime = new Date(`${date} ${time}`);
+    const reminderDateTime = new Date(appointmentDateTime.getTime() - 30 * 60 * 1000);
+    const cronTime = `${reminderDateTime.getSeconds()} ${reminderDateTime.getMinutes()} ${reminderDateTime.getHours()} ${reminderDateTime.getDate()} ${reminderDateTime.getMonth() + 1} *`;
+
+    console.log('Scheduling cron job:', { cronTime, reminderDateTime: reminderDateTime.toISOString() });
+
+    const job = cron.schedule(cronTime, async () => {
+      try {
+        const vet = await Veterinarian.findById(veterinarianId);
+        if (!vet) throw new Error('Veterinarian not found');
+        const notification = new Notification({
+          userId: req.user._id,
+          bookingId: booking._id,
+          message: `Reminder: Your appointment with Dr. ${vet.name} is in 30 minutes on ${date} at ${time}.`,
+          time: appointmentDateTime.toLocaleTimeString(),
+        });
+        await notification.save();
+        console.log(`Notification saved for ${req.user._id} at ${new Date().toISOString()} (NPT)`);
+        scheduledJobs.delete(booking._id.toString());
+      } catch (err) {
+        console.error('Cron job error:', err.message);
+      }
+    }, {
+      scheduled: true,
+      timezone: "Asia/Kathmandu" // Nepal Time (UTC+5:45)
     });
+
+    scheduledJobs.set(booking._id.toString(), job);
+    res.status(201).json({ message: 'Booking created successfully', bookingId: booking._id });
   } catch (error) {
     console.error('Error creating booking:', error.stack);
     res.status(500).json({ error: 'Failed to create booking', details: error.message });
   }
 });
+
+// Reload cron jobs on server start
+const reloadCronJobs = async () => {
+  try {
+    const bookings = await Booking.find({
+      date: { $gte: new Date().toISOString().split('T')[0] },
+      status: { $in: ['Pending', 'Confirmed'] }
+    });
+
+    console.log(`Found ${bookings.length} bookings to reschedule`);
+
+    for (const booking of bookings) {
+      const { date, time, userId, veterinarianId, _id } = booking;
+      const appointmentDateTime = new Date(`${date} ${time}`);
+      const reminderDateTime = new Date(appointmentDateTime.getTime() - 30 * 60 * 1000);
+      const now = new Date();
+
+      if (reminderDateTime > now) {
+        const cronTime = `${reminderDateTime.getSeconds()} ${reminderDateTime.getMinutes()} ${reminderDateTime.getHours()} ${reminderDateTime.getDate()} ${reminderDateTime.getMonth() + 1} *`;
+        console.log('Rescheduling cron job for booking:', _id, cronTime);
+
+        const job = cron.schedule(cronTime, async () => {
+          try {
+            const vet = await Veterinarian.findById(veterinarianId);
+            if (!vet) throw new Error('Veterinarian not found');
+            const notification = new Notification({
+              userId,
+              bookingId: _id,
+              message: `Reminder: Your appointment with Dr. ${vet.name} is in 30 minutes on ${date} at ${time}.`,
+              time: appointmentDateTime.toLocaleTimeString(),
+            });
+            await notification.save();
+            console.log(`Notification saved for ${userId} at ${new Date().toISOString()} (NPT)`);
+            scheduledJobs.delete(_id.toString());
+          } catch (err) {
+            console.error('Cron job error:', err.message);
+          }
+        }, {
+          scheduled: true,
+          timezone: "Asia/Kathmandu" // Nepal Time (UTC+5:45)
+        });
+
+        scheduledJobs.set(_id.toString(), job);
+      } else {
+        console.log(`Skipping past booking: ${_id}, reminder time: ${reminderDateTime.toISOString()}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error reloading cron jobs:', error.stack);
+  }
+};
 
 // Cancel an appointment (user)
 router.delete('/:id', auth, async (req, res) => {
@@ -112,6 +198,13 @@ router.delete('/:id', auth, async (req, res) => {
     });
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found or not authorized' });
+    }
+    // Stop the scheduled job if it exists
+    const job = scheduledJobs.get(booking._id.toString());
+    if (job) {
+      job.stop();
+      scheduledJobs.delete(booking._id.toString());
+      console.log(`Stopped cron job for booking: ${booking._id}`);
     }
     res.json({ message: 'Appointment canceled successfully' });
   } catch (error) {
@@ -169,6 +262,13 @@ router.delete('/admin/:id', auth, async (req, res) => {
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }
+    // Stop the scheduled job if it exists
+    const job = scheduledJobs.get(booking._id.toString());
+    if (job) {
+      job.stop();
+      scheduledJobs.delete(booking._id.toString());
+      console.log(`Stopped cron job for booking: ${booking._id}`);
+    }
     res.json({ message: 'Appointment canceled successfully by admin' });
   } catch (error) {
     console.error('Error canceling appointment as admin:', error.stack);
@@ -192,6 +292,16 @@ router.put('/:id/status', auth, async (req, res) => {
 
     booking.status = status;
     await booking.save();
+
+    // If status changes to something other than Pending/Confirmed, stop the cron job
+    if (!['Pending', 'Confirmed'].includes(status)) {
+      const job = scheduledJobs.get(booking._id.toString());
+      if (job) {
+        job.stop();
+        scheduledJobs.delete(booking._id.toString());
+        console.log(`Stopped cron job for booking: ${booking._id} due to status change to ${status}`);
+      }
+    }
 
     res.json({ message: `Appointment marked as ${status}`, booking });
   } catch (error) {
@@ -240,9 +350,8 @@ router.get('/reports', auth, async (req, res) => {
     console.log('Fetching reports for userId:', req.user._id);
     console.log('Report model available:', typeof Report !== 'undefined');
 
-    // Verify MongoDB connection using imported mongoose
     const dbState = mongoose.connection.readyState;
-    console.log('MongoDB connection state:', dbState); // 1 = connected
+    console.log('MongoDB connection state:', dbState);
 
     const reports = await Report.find({ userId: req.user._id })
       .sort({ createdAt: -1 });
@@ -258,7 +367,7 @@ router.get('/reports', auth, async (req, res) => {
         res.json(populatedReports);
       } catch (popError) {
         console.warn('Population failed:', popError.message);
-        res.json(reports); // Return unpopulated reports if population fails
+        res.json(reports);
       }
     } else {
       console.log('No reports found for this user');
@@ -270,9 +379,45 @@ router.get('/reports', auth, async (req, res) => {
   }
 });
 
+// Fetch notifications for a user
+router.get('/notifications', auth, async (req, res) => {
+  console.log('--- Starting /notifications endpoint ---');
+  try {
+    console.log('Authenticated user:', req.user);
+    console.log('User ID:', req.user._id);
+    console.log('MongoDB connection state:', mongoose.connection.readyState);
+
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('MongoDB is not connected');
+    }
+
+    console.log('Checking Notification model availability:', typeof Notification !== 'undefined' ? 'Available' : 'Not Available');
+    console.log('Querying Notification collection for userId:', req.user._id);
+
+    const notifications = await Notification.find({ userId: req.user._id })
+      .populate('bookingId', 'date time veterinarianId')
+      .sort({ createdAt: -1 });
+
+    console.log('Notifications retrieved:', notifications.length);
+    console.log('Notifications data:', JSON.stringify(notifications, null, 2));
+    res.json(notifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', {
+      message: error.message,
+      stack: error.stack,
+      userId: req.user?._id || 'Unknown',
+      mongoState: mongoose.connection.readyState,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ error: 'Failed to fetch notifications', details: error.message });
+  }
+  console.log('--- Finished /notifications endpoint ---');
+});
+
 // Get a specific booking by ID
 router.get('/:id', auth, async (req, res) => {
   try {
+    console.log('Fetching booking with ID:', req.params.id);
     const booking = await Booking.findById(req.params.id)
       .populate('userId', 'name email')
       .populate('veterinarianId', 'name');
@@ -344,4 +489,23 @@ router.get('/veterinarian/reports', auth, async (req, res) => {
   }
 });
 
+// Mark notification as read
+router.put('/notifications/:id/read', auth, async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { read: true },
+      { new: true }
+    );
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    res.json({ message: 'Notification marked as read', notification });
+  } catch (error) {
+    console.error('Error marking notification as read:', error.stack);
+    res.status(500).json({ error: 'Failed to mark notification as read', details: error.message });
+  }
+});
+
 export default router;
+export { reloadCronJobs };
