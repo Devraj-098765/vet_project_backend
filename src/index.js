@@ -34,7 +34,7 @@ app.use((req, res, next) => {
 const uploadsDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log("📂 'uploads' directory created.");
+  console.log(" 'uploads' directory created.");
 }
 app.use("/uploads", express.static(uploadsDir));
 
@@ -60,7 +60,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/admin", adminAuthRouter);
 app.use("/api/veterinarians", vetRouter);
 app.use("/api/bookings", bookingRouter);
-app.use("/api/blogs", blogRouter); // Add this line
+app.use("/api/blogs", blogRouter); 
 
 // MongoDB Connection
 const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/VetCareDB";
@@ -73,7 +73,7 @@ const connectDB = async () => {
       useUnifiedTopology: true,
       autoIndex: true,
     });
-    console.log("✅ Connected to MongoDB");
+    console.log(" Connected to MongoDB");
 
     // Seed Admin User
     try {
@@ -86,7 +86,7 @@ const connectDB = async () => {
     // Reload Cron Jobs for Notifications
     try {
       await reloadCronJobs();
-      console.log("Cron jobs initialized");
+     
     } catch (err) {
       console.error("Error reloading cron jobs:", err);
     }
@@ -110,6 +110,6 @@ process.on("uncaughtException", (err) => {
 // Start Server
 connectDB().then(() => {
   app.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
+    console.log(` Server running on http://localhost:${port}`);
   });
 });

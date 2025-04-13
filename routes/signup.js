@@ -1,6 +1,7 @@
 import express from "express";
 import { User, validateUser } from "../models/user.js";
 import _ from "lodash";
+import { z } from "zod";
 import bcrypt from "bcrypt";
 
 const signupRouter = express.Router();
