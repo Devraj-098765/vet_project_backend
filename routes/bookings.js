@@ -67,7 +67,17 @@ router.get('/available-slots', async (req, res) => {
     ];
 
     const bookedSlots = bookings.map(booking => booking.time);
-    const availableSlots = allTimeSlots.filter(slot => !bookedSlots.includes(slot));
+    let availableSlots = allTimeSlots.filter(slot => !bookedSlots.includes(slot));
+
+    // Restrict past time slots if the date is today
+    const today = new Date().toISOString().split('T')[0];
+    if (date === today) {
+      const currentTime = new Date();
+      availableSlots = availableSlots.filter(slot => {
+        const slotTime = new Date(`${date} ${slot}`);
+        return slotTime > currentTime;
+      });
+    }
 
     res.json({ availableSlots });
   } catch (error) {
@@ -82,6 +92,13 @@ router.post('/', auth, async (req, res) => {
     const { veterinarianId, date, time } = req.body;
 
     console.log('Creating booking with:', { veterinarianId, date, time, userId: req.user._id });
+
+    // Validate that the booking time is in the future
+    const appointmentDateTime = new Date(`${date} ${time}`);
+    const currentTime = new Date();
+    if (appointmentDateTime <= currentTime) {
+      return res.status(400).json({ error: 'Cannot book past or current time slots' });
+    }
 
     const existingBooking = await Booking.findOne({
       veterinarianId,
@@ -103,7 +120,6 @@ router.post('/', auth, async (req, res) => {
     await booking.save();
     console.log('Booking saved:', booking._id);
 
-    const appointmentDateTime = new Date(`${date} ${time}`);
     const reminderDateTime = new Date(appointmentDateTime.getTime() - 30 * 60 * 1000);
     const cronTime = `${reminderDateTime.getSeconds()} ${reminderDateTime.getMinutes()} ${reminderDateTime.getHours()} ${reminderDateTime.getDate()} ${reminderDateTime.getMonth() + 1} *`;
 
