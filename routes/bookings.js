@@ -205,16 +205,20 @@ const reloadCronJobs = async () => {
   }
 };
 
-// Cancel an appointment (user)
-router.delete('/:id', auth, async (req, res) => {
+router.put('/:id/cancel', auth, async (req, res) => {
   try {
-    const booking = await Booking.findOneAndDelete({ 
+    const booking = await Booking.findOne({ 
       _id: req.params.id, 
       userId: req.user._id 
     });
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found or not authorized' });
     }
+
+    // Update the status to "Cancelled"
+    booking.status = 'Cancelled';
+    await booking.save();
+
     // Stop the scheduled job if it exists
     const job = scheduledJobs.get(booking._id.toString());
     if (job) {
@@ -222,9 +226,10 @@ router.delete('/:id', auth, async (req, res) => {
       scheduledJobs.delete(booking._id.toString());
       console.log(`Stopped cron job for booking: ${booking._id}`);
     }
-    res.json({ message: 'Appointment canceled successfully' });
+
+    res.json({ message: 'Appointment cancelled successfully', booking });
   } catch (error) {
-    console.error('Error canceling appointment:', error.stack);
+    console.error('Error cancelling appointment:', error.stack);
     res.status(500).json({ error: 'Failed to cancel appointment', details: error.message });
   }
 });
