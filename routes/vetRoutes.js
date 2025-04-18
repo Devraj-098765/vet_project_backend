@@ -84,6 +84,10 @@ const upload = multer({ storage });
 // POST route to add a new veterinarian (with image)
 vetRouter.post("/", upload.single("image"), async (req, res) => {
   try {
+    // Debug: Log all incoming request body and file
+    console.log("Request body:", req.body);
+    console.log("Request file:", req.file);
+
     const {
       name,
       email,
@@ -136,8 +140,15 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       location,
     });
 
+    // Debug: Log the veterinarian object before saving
+    console.log("New veterinarian object:", newVeterinarian);
+
     // Save veterinarian to database
     await newVeterinarian.save();
+
+    // Debug: Log the saved veterinarian
+    console.log("Saved veterinarian:", newVeterinarian);
+
     res
       .status(201)
       .json({ message: "Veterinarian added successfully", veterinarian: newVeterinarian });
@@ -151,6 +162,8 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
 vetRouter.get("/", async (req, res) => {
   try {
     const veterinarians = await Veterinarian.find();
+    // Debug: Log fetched veterinarians
+    console.log("Fetched veterinarians:", veterinarians);
     res.json(veterinarians);
   } catch (error) {
     console.error("Error fetching veterinarians:", error);
