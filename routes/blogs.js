@@ -1,6 +1,6 @@
 // routes/blogs.js
 import express from 'express';
-import Blog from '../models/Blog.js';
+import Blog from "../models/blog.js"
 import auth from '../middleware/auth.js';
 
 const router = express.Router();
