@@ -15,7 +15,7 @@ import authRouter from "../routes/auth.js";
 import adminAuthRouter from "../routes/adminAuth.js";
 import { vetRouter } from "../routes/vetRoutes.js";
 import bookingRouter, { reloadCronJobs } from "../routes/bookings.js";
-import blogRouter from "../routes/blogs.js"; // Add this line
+import blogRouter from "../routes/blogs.js"; 
 import seedAdmin from "../scripts/seedAdmin.js";
 
 const app = express();
