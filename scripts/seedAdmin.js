@@ -3,8 +3,8 @@ import { Admin } from "../models/admin.js";
 
 const seedAdmin = async () => {
   const adminData = {
-    email: "admin@example.com",
-    password: "admin123",
+    email: "vetcaresystem12@gmail.com",
+    password: "abhisek2025",
     role: "admin",
   };
 
