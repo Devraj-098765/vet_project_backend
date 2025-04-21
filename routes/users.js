@@ -1,6 +1,7 @@
 import express from "express";
 import { User, validateUser } from "../models/user.js";
 import _ from "lodash";
+import bcrypt from "bcrypt";
 import  auth  from "../middleware/auth.js"
 
 const userRouter = express.Router();
@@ -19,11 +20,17 @@ userRouter.put("/:id", auth, async (req, res) => {
   const { error } = validateUser(req.body);
   if (error) return res.status(400).json({ errors: error.errors });
 
-  const user = await User.findByIdAndUpdate(req.params.id, {
+  let updateData = {
     name: req.body.name,
     email: req.body.email,
-    password: req.body.password
-  }, { new: true })
+  }
+
+  if (req.body.password) {
+    const salt = await bcrypt.genSalt(10);
+    updateData.password = await bcrypt.hash(req.body.password, salt);
+  }
+
+  const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true })
 
   if (!user)
     return res.status(404).send("The user with the given Id was not found")

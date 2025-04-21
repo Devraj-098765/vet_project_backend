@@ -17,7 +17,7 @@ const sendEmail = async (to, subject, text, html = null) => {
       to,
       subject,
       text,
-      html, // Optional HTML content
+    
     };
 
     // Send the email

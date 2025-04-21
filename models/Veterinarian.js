@@ -12,6 +12,7 @@ const veterinarianSchema = new mongoose.Schema({
   password: { type: String, required: true },
   image: { type: String },
   location: { type: String, required: true },
+  isActive: { type: Boolean, default: true },
   role: {
     type: String,
     default: "veterinarian",
