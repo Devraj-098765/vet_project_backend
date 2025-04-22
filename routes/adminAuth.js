@@ -19,6 +19,11 @@ adminAuthRouter.post("/", async (req, res) => {
       user = await Admin.findOne({ email });
     } else if (role === "veterinarian") {
       user = await Veterinarian.findOne({ email: req.body.email }); 
+      
+      // Check if veterinarian account is active
+      if (user && (user.status === "inactive" || user.isActive === false)) {
+        return res.status(403).json({ message: "Your account has been deactivated. Please contact the administrator." });
+      }
     } else {
       return res.status(400).json({ message: "Invalid role" });
     }
