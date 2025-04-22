@@ -6,6 +6,7 @@ import Notification from '../models/notification.js';
 import auth from '../middleware/auth.js';
 import { Veterinarian } from '../models/Veterinarian.js';
 import Report from '../models/Report.js';
+import sendEmail from '../utils/sendmail.js';
 
 const router = express.Router();
 
@@ -119,6 +120,54 @@ router.post('/', auth, async (req, res) => {
     });
     await booking.save();
     console.log('Booking saved:', booking._id);
+
+    // Fetch veterinarian details to get email and name
+    const vet = await Veterinarian.findById(veterinarianId);
+    if (!vet) {
+      console.error('Veterinarian not found for ID:', veterinarianId);
+      return res.status(404).json({ error: 'Veterinarian not found' });
+    }
+
+    // Get user details for the email
+    const User = mongoose.model('User');
+    const user = await User.findById(req.user._id);
+    const userName = user ? user.name : 'A client';
+
+    // Send email notification to the veterinarian
+    try {
+      const emailSubject = 'New Appointment Booked';
+      
+      const emailText = `Dear ${vet.name},
+
+You have a new appointment booked by ${userName} on ${date} at ${time} for ${req.body.petName} / ${req.body.service}.
+Please log in to your dashboard to view more details.
+
+Best regards,
+VetCare System`;
+
+      const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+        <h2 style="color: #6B46C1;">New Appointment Notification</h2>
+        <p>Dear ${vet.name},</p>
+        <p>You have a new appointment booked by <strong>${userName}</strong>.</p>
+        <p><strong>Details:</strong></p>
+        <ul>
+          <li><strong>Date:</strong> ${date}</li>
+          <li><strong>Time:</strong> ${time}</li>
+          <li><strong>Pet Name:</strong> ${req.body.petName}</li>
+          <li><strong>Service:</strong> ${req.body.service}</li>
+        </ul>
+        <p>Please log in to your dashboard to view more details.</p>
+        <p style="margin-top: 20px;">Best regards,<br />VetCare System Team</p>
+      </div>
+      `;
+
+      await sendEmail(vet.email, emailSubject, emailText, emailHtml);
+      console.log(`Appointment notification email sent to veterinarian: ${vet.email}`);
+    } catch (emailError) {
+      console.error('Failed to send veterinarian notification email:', emailError);
+      // Continue even if email fails
+    }
 
     const reminderDateTime = new Date(appointmentDateTime.getTime() - 30 * 60 * 1000);
     const cronTime = `${reminderDateTime.getSeconds()} ${reminderDateTime.getMinutes()} ${reminderDateTime.getHours()} ${reminderDateTime.getDate()} ${reminderDateTime.getMonth() + 1} *`;
