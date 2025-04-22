@@ -41,7 +41,7 @@ app.use("/uploads", express.static(uploadsDir));
 // CORS Configuration
 app.use(
   cors({
-    origin: "*", // Change to specific origin in production (e.g., "http://localhost:5173")
+    origin: "http://localhost:5173", // Change to specific origin in production (e.g., "http://localhost:5173")
     exposedHeaders: ["x-auth-token"],
   })
 );
