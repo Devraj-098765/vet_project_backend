@@ -127,10 +127,30 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
 // GET route to fetch all active veterinarians
 vetRouter.get("/", async (req, res) => {
   try {
-    console.log("Fetching active veterinarians");
-    const veterinarians = await Veterinarian.find({ isActive: true });
-    console.log("Fetched active veterinarians:", veterinarians);
-    res.json(veterinarians);
+    console.log("Fetching veterinarians");
+    
+    // Check if admin role is requesting (for future role-based filtering)
+    // For now, always return all veterinarians including inactive ones
+    const veterinarians = await Veterinarian.find();
+    
+    // Ensure status field exists for all veterinarians (for backward compatibility)
+    const processedVets = veterinarians.map(vet => {
+      const vetObj = vet.toObject();
+      
+      // If there's no status field but isActive exists, set status based on isActive
+      if (vetObj.status === undefined && vetObj.isActive !== undefined) {
+        vetObj.status = vetObj.isActive ? 'active' : 'inactive';
+      }
+      // If there's no isActive field but status exists, set isActive based on status
+      else if (vetObj.isActive === undefined && vetObj.status !== undefined) {
+        vetObj.isActive = vetObj.status === 'active';
+      }
+      
+      return vetObj;
+    });
+    
+    console.log("Fetched veterinarians:", processedVets.length);
+    res.json(processedVets);
   } catch (error) {
     console.error("Error fetching veterinarians:", { message: error.message, stack: error.stack });
     res.status(500).json({ message: "Server error", error: error.message });
@@ -286,6 +306,98 @@ vetRouter.put("/:id/change-password", auth, async (req, res) => {
     res.json({ message: "Password updated successfully" });
   } catch (error) {
     console.error("Error changing password:", { message: error.message, stack: error.stack });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// PATCH route to update veterinarian status
+vetRouter.patch("/:id/status", async (req, res) => {
+  try {
+    console.log("Status update request for ID:", req.params.id);
+    console.log("Status update request body:", req.body);
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.error("Invalid ObjectId:", req.params.id);
+      return res.status(400).json({ message: "Invalid veterinarian ID format" });
+    }
+
+    const veterinarian = await Veterinarian.findById(req.params.id);
+    if (!veterinarian) {
+      console.error("Veterinarian not found for ID:", req.params.id);
+      return res.status(404).json({ message: "Veterinarian not found" });
+    }
+
+    const { status } = req.body;
+    if (!status || !['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ message: "Valid status required (active or inactive)" });
+    }
+
+    // Save the previous status to check if it changed
+    const previousStatus = veterinarian.status;
+    
+    veterinarian.status = status;
+    // Maintain backward compatibility with isActive
+    veterinarian.isActive = status === 'active';
+    
+    await veterinarian.save();
+    console.log("Updated veterinarian status to:", status);
+
+    // Send email notification when account status changes
+    try {
+      // Account deactivation email
+      if (status === 'inactive' && previousStatus === 'active') {
+        const emailSubject = 'Your VetCare Account Has Been Temporarily Blocked';
+        const emailText = `Dear ${veterinarian.name},
+        
+Your account has been temporarily blocked by the admin. Please contact the VetCare administrator as soon as possible for further details.
+
+Best regards,
+VetCare System Team`;
+
+        const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <h2 style="color: #6B46C1;">VetCare Account Status Update</h2>
+          <p>Dear ${veterinarian.name},</p>
+          <p>Your account has been temporarily blocked by the admin.</p>
+          <p>Please contact the VetCare administrator as soon as possible for further details.</p>
+          <p style="margin-top: 20px;">Best regards,<br />VetCare System Team</p>
+        </div>
+        `;
+
+        await sendEmail(veterinarian.email, emailSubject, emailText, emailHtml);
+        console.log(`Deactivation notification email sent to ${veterinarian.email}`);
+      } 
+      // Account reactivation email
+      else if (status === 'active' && previousStatus === 'inactive') {
+        const emailSubject = 'Your VetCare Account Has Been Reactivated';
+        const emailText = `Dear ${veterinarian.name},
+        
+Your account has been reactivated. You can now log in to the VetCare system with your existing credentials.
+
+Best regards,
+VetCare System Team`;
+
+        const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <h2 style="color: #6B46C1;">VetCare Account Reactivated</h2>
+          <p>Dear ${veterinarian.name},</p>
+          <p>Good news! Your account has been reactivated.</p>
+          <p>You can now log in to the VetCare system with your existing credentials.</p>
+          <p style="margin-top: 20px;">Best regards,<br />VetCare System Team</p>
+        </div>
+        `;
+
+        await sendEmail(veterinarian.email, emailSubject, emailText, emailHtml);
+        console.log(`Reactivation notification email sent to ${veterinarian.email}`);
+      }
+    } catch (emailError) {
+      console.error("Failed to send status change email:", emailError);
+      // Continue with the response even if email fails
+    }
+
+    res.json({ message: "Status updated successfully", veterinarian });
+  } catch (error) {
+    console.error("Error updating veterinarian status:", { message: error.message, stack: error.stack });
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
