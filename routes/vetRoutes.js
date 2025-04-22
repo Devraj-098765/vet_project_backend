@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { Veterinarian } from "../models/Veterinarian.js";
 import sendEmail from "../utils/sendmail.js";
 import auth from "../middleware/auth.js";
+import mongoose from "mongoose";
 
 const vetRouter = express.Router();
 
@@ -18,7 +19,6 @@ const upload = multer({ storage });
 // POST route to add a new veterinarian (with image)
 vetRouter.post("/", upload.single("image"), async (req, res) => {
   try {
-    // Debug: Log all incoming request body and file
     console.log("Request body:", req.body);
     console.log("Request file:", req.file);
 
@@ -34,7 +34,6 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       location,
     } = req.body;
 
-    // Check if all required fields are provided
     if (
       !name ||
       !email ||
@@ -51,16 +50,13 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
         .json({ message: "All fields are required, including password and location" });
     }
 
-    // Check if veterinarian already exists
     const existingVet = await Veterinarian.findOne({ email });
     if (existingVet) {
       return res.status(400).json({ message: "Veterinarian already exists" });
     }
 
-    // Hash the password before storing
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create a new veterinarian object
     const newVeterinarian = new Veterinarian({
       name,
       email,
@@ -74,16 +70,10 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       location,
     });
 
-    // Debug: Log the veterinarian object before saving
     console.log("New veterinarian object:", newVeterinarian);
-
-    // Save veterinarian to database
     await newVeterinarian.save();
-
-    // Debug: Log the saved veterinarian
     console.log("Saved veterinarian:", newVeterinarian);
 
-    // Send email with login credentials
     const emailSubject = "Your VetCare System Login Credentials";
     const emailText = `
       Dear ${name},
@@ -99,7 +89,6 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       VetCare System Team
     `;
 
-    // Optional: HTML version of the email for better formatting
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
         <h2 style="color: #6B46C1;">Welcome to VetCare System!</h2>
@@ -130,20 +119,63 @@ vetRouter.post("/", upload.single("image"), async (req, res) => {
       .status(201)
       .json({ message: "Veterinarian added successfully", veterinarian: newVeterinarian });
   } catch (error) {
-    console.error("Error adding veterinarian:", error);
+    console.error("Error adding veterinarian:", { message: error.message, stack: error.stack });
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 
-// GET route to fetch all veterinarians
+// GET route to fetch all active veterinarians
 vetRouter.get("/", async (req, res) => {
   try {
-    const veterinarians = await Veterinarian.find();
-    // Debug: Log fetched veterinarians
-    console.log("Fetched veterinarians:", veterinarians);
+    console.log("Fetching active veterinarians");
+    const veterinarians = await Veterinarian.find({ isActive: true });
+    console.log("Fetched active veterinarians:", veterinarians);
     res.json(veterinarians);
   } catch (error) {
-    console.error("Error fetching veterinarians:", error);
+    console.error("Error fetching veterinarians:", { message: error.message, stack: error.stack });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// GET route to fetch the authenticated veterinarian's profile
+vetRouter.get("/me", auth, async (req, res) => {
+  try {
+    console.log("Fetching profile for user:", req.user);
+
+    // Check MongoDB connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error("MongoDB not connected:", mongoose.connection.readyState);
+      return res.status(500).json({ message: "Database connection error" });
+    }
+
+    // Validate user ID
+    if (!req.user?._id) {
+      console.error("No user ID found in request");
+      return res.status(401).json({ message: "Unauthorized: No user ID provided" });
+    }
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(req.user._id)) {
+      console.error("Invalid ObjectId:", req.user._id);
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    const veterinarian = await Veterinarian.findById(req.user._id);
+    console.log("Database query result:", veterinarian);
+
+    if (!veterinarian) {
+      console.error("Veterinarian not found for ID:", req.user._id);
+      return res.status(404).json({ message: "Veterinarian not found" });
+    }
+
+    console.log("Fetched veterinarian profile:", veterinarian);
+    res.json(veterinarian);
+  } catch (error) {
+    console.error("Error fetching veterinarian profile:", {
+      message: error.message,
+      stack: error.stack,
+      userId: req.user?._id,
+    });
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
@@ -151,13 +183,21 @@ vetRouter.get("/", async (req, res) => {
 // GET route to fetch a specific veterinarian by ID
 vetRouter.get("/:id", async (req, res) => {
   try {
+    console.log("Fetching veterinarian by ID:", req.params.id);
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.error("Invalid ObjectId:", req.params.id);
+      return res.status(400).json({ message: "Invalid veterinarian ID format" });
+    }
+
     const veterinarian = await Veterinarian.findById(req.params.id);
     if (!veterinarian) {
+      console.error("Veterinarian not found for ID:", req.params.id);
       return res.status(404).json({ message: "Veterinarian not found" });
     }
+    console.log("Fetched veterinarian:", veterinarian);
     res.json(veterinarian);
   } catch (error) {
-    console.error("Error fetching veterinarian:", error);
+    console.error("Error fetching veterinarian:", { message: error.message, stack: error.stack });
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
@@ -168,39 +208,41 @@ vetRouter.put("/:id", auth, upload.single("image"), async (req, res) => {
     console.log("Update request for ID:", req.params.id);
     console.log("Update request body:", req.body);
     console.log("Update request file:", req.file);
-    
-    // Get the veterinarian by ID
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.error("Invalid ObjectId:", req.params.id);
+      return res.status(400).json({ message: "Invalid veterinarian ID format" });
+    }
+
     const veterinarian = await Veterinarian.findById(req.params.id);
     if (!veterinarian) {
+      console.error("Veterinarian not found for ID:", req.params.id);
       return res.status(404).json({ message: "Veterinarian not found" });
     }
 
-    // Check if the logged-in user is updating their own profile
     if (veterinarian._id.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+      console.error("Unauthorized update attempt:", { userId: req.user._id, vetId: req.params.id });
       return res.status(403).json({ message: "Not authorized to update this profile" });
     }
 
-    // Fields that can be updated
     const updatableFields = ["name", "phone", "specialization", "experience", "bio", "fee", "location", "isActive"];
-    
-    // Update the veterinarian with the new data
+
     updatableFields.forEach(field => {
       if (req.body[field] !== undefined) {
         veterinarian[field] = req.body[field];
       }
     });
 
-    // Update image if a new one was uploaded
     if (req.file) {
       veterinarian.image = `/uploads/${req.file.filename}`;
     }
 
-    // Save the updated veterinarian
     await veterinarian.save();
-    
+    console.log("Updated veterinarian:", veterinarian);
+
     res.json(veterinarian);
   } catch (error) {
-    console.error("Error updating veterinarian:", error);
+    console.error("Error updating veterinarian:", { message: error.message, stack: error.stack });
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
@@ -209,39 +251,41 @@ vetRouter.put("/:id", auth, upload.single("image"), async (req, res) => {
 vetRouter.put("/:id/change-password", auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
-    // Validate input
+
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: "Current password and new password are required" });
     }
 
-    // Get the veterinarian
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.error("Invalid ObjectId:", req.params.id);
+      return res.status(400).json({ message: "Invalid veterinarian ID format" });
+    }
+
     const veterinarian = await Veterinarian.findById(req.params.id);
     if (!veterinarian) {
+      console.error("Veterinarian not found for ID:", req.params.id);
       return res.status(404).json({ message: "Veterinarian not found" });
     }
 
-    // Check if the logged-in user is updating their own password
     if (veterinarian._id.toString() !== req.user._id.toString()) {
+      console.error("Unauthorized password change attempt:", { userId: req.user._id, vetId: req.params.id });
       return res.status(403).json({ message: "Not authorized to change this password" });
     }
 
-    // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, veterinarian.password);
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Current password is incorrect" });
     }
 
-    // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
-    // Update the password
+
     veterinarian.password = hashedPassword;
     await veterinarian.save();
+    console.log("Password updated for veterinarian:", veterinarian._id);
 
     res.json({ message: "Password updated successfully" });
   } catch (error) {
-    console.error("Error changing password:", error);
+    console.error("Error changing password:", { message: error.message, stack: error.stack });
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
