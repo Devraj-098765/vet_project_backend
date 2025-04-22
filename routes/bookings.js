@@ -390,6 +390,12 @@ router.post('/:id/report', auth, async (req, res) => {
     if (booking.veterinarianId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized to create report for this booking' });
     }
+    if (booking.status === 'Completed') {
+      return res.status(400).json({ error: 'Cannot create report for completed appointments' });
+    }
+    if (booking.hasReport) {
+      return res.status(400).json({ error: 'A report already exists for this booking' });
+    }
     const reportData = {
       bookingId: booking._id,
       userId: booking.userId,
@@ -401,6 +407,11 @@ router.post('/:id/report', auth, async (req, res) => {
     const report = new Report(reportData);
     await report.save();
     console.log('Report created:', report);
+
+    // Update the booking to indicate it has a report
+    booking.hasReport = true;
+    booking.status = 'Completed';
+    await booking.save();
 
     // Create a notification for the user
     const vet = await Veterinarian.findById(booking.veterinarianId);
@@ -587,6 +598,35 @@ router.get('/veterinarian/reports', auth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching veterinarian reports:', error.stack);
     res.status(500).json({ error: 'Failed to fetch veterinarian reports', details: error.message });
+  }
+});
+
+// Get report by booking ID
+router.get('/report-by-booking/:bookingId', auth, async (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    
+    // Validate booking ID
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({ error: 'Invalid booking ID format' });
+    }
+    
+    // Find report by booking ID
+    const report = await Report.findOne({ bookingId });
+    
+    if (!report) {
+      return res.status(404).json({ error: 'No report found for this booking' });
+    }
+    
+    // Check if the user is authorized to access this report
+    if (report.veterinarianId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to view this report' });
+    }
+    
+    res.json(report);
+  } catch (error) {
+    console.error('Error fetching report by booking ID:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch report', details: error.message });
   }
 });
 

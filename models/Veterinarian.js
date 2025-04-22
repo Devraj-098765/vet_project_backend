@@ -18,6 +18,8 @@ const veterinarianSchema = new mongoose.Schema({
     type: String,
     default: "veterinarian",
   },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 });
 
 // Virtual getter to ensure backward compatibility

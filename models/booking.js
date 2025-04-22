@@ -17,6 +17,7 @@ const bookingSchema = new mongoose.Schema({
     default: 'Pending', 
     enum: ['Pending', 'Confirmed', 'Completed', 'Cancelled'] 
   }, // Appointment status
+  hasReport: { type: Boolean, default: false }, // Track if a report exists for this booking
   createdAt: { type: Date, default: Date.now },
 });
 
