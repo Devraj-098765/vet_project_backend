@@ -3,6 +3,7 @@ import multer from "multer";
 import bcrypt from "bcrypt";
 import { Veterinarian } from "../models/Veterinarian.js";
 import sendEmail from "../utils/sendmail.js";
+import auth from "../middleware/auth.js";
 
 const vetRouter = express.Router();
 
@@ -143,6 +144,104 @@ vetRouter.get("/", async (req, res) => {
     res.json(veterinarians);
   } catch (error) {
     console.error("Error fetching veterinarians:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// GET route to fetch a specific veterinarian by ID
+vetRouter.get("/:id", async (req, res) => {
+  try {
+    const veterinarian = await Veterinarian.findById(req.params.id);
+    if (!veterinarian) {
+      return res.status(404).json({ message: "Veterinarian not found" });
+    }
+    res.json(veterinarian);
+  } catch (error) {
+    console.error("Error fetching veterinarian:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// PUT route to update a veterinarian profile
+vetRouter.put("/:id", auth, upload.single("image"), async (req, res) => {
+  try {
+    console.log("Update request for ID:", req.params.id);
+    console.log("Update request body:", req.body);
+    console.log("Update request file:", req.file);
+    
+    // Get the veterinarian by ID
+    const veterinarian = await Veterinarian.findById(req.params.id);
+    if (!veterinarian) {
+      return res.status(404).json({ message: "Veterinarian not found" });
+    }
+
+    // Check if the logged-in user is updating their own profile
+    if (veterinarian._id.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Not authorized to update this profile" });
+    }
+
+    // Fields that can be updated
+    const updatableFields = ["name", "phone", "specialization", "experience", "bio", "fee", "location", "isActive"];
+    
+    // Update the veterinarian with the new data
+    updatableFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        veterinarian[field] = req.body[field];
+      }
+    });
+
+    // Update image if a new one was uploaded
+    if (req.file) {
+      veterinarian.image = `/uploads/${req.file.filename}`;
+    }
+
+    // Save the updated veterinarian
+    await veterinarian.save();
+    
+    res.json(veterinarian);
+  } catch (error) {
+    console.error("Error updating veterinarian:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// PUT route to change veterinarian password
+vetRouter.put("/:id/change-password", auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current password and new password are required" });
+    }
+
+    // Get the veterinarian
+    const veterinarian = await Veterinarian.findById(req.params.id);
+    if (!veterinarian) {
+      return res.status(404).json({ message: "Veterinarian not found" });
+    }
+
+    // Check if the logged-in user is updating their own password
+    if (veterinarian._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to change this password" });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, veterinarian.password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update the password
+    veterinarian.password = hashedPassword;
+    await veterinarian.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Error changing password:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
