@@ -13,10 +13,21 @@ const veterinarianSchema = new mongoose.Schema({
   image: { type: String },
   location: { type: String, required: true },
   isActive: { type: Boolean, default: true },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   role: {
     type: String,
     default: "veterinarian",
   },
+});
+
+// Virtual getter to ensure backward compatibility
+veterinarianSchema.virtual('isActiveComputed').get(function() {
+  return this.status === 'active';
+});
+
+// Virtual setter to maintain backward compatibility
+veterinarianSchema.virtual('isActiveComputed').set(function(value) {
+  this.status = value ? 'active' : 'inactive';
 });
 
 veterinarianSchema.methods.generateAuthToken = function () {
