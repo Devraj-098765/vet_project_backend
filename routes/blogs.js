@@ -21,12 +21,40 @@ router.get('/', async (req, res) => {
 // Get veterinarian's own blogs
 router.get('/my-blogs', auth, async (req, res) => {
   try {
+    console.log('Handling /my-blogs request for user ID:', req.user._id);
+    
+    if (!req.user || !req.user._id) {
+      console.error('User information missing from request:', req.user);
+      return res.status(400).json({ error: 'User information is missing' });
+    }
+    
     const blogs = await Blog.find({ author: req.user._id })
       .sort({ createdAt: -1 });
+    
+    console.log('Found blogs for user:', blogs.length);
+    
     // Optionally, add .populate('author', 'name') if author.name is needed in VetBlogPage
     res.json(blogs);
   } catch (error) {
+    console.error('Error in /my-blogs route:', error.message);
+    console.error('Full error object:', error);
     res.status(500).json({ error: 'Failed to fetch your blogs' });
+  }
+});
+
+// Get a single blog by ID (public access)
+router.get('/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id)
+      .populate('author', 'name');
+    
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+    
+    res.json(blog);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch blog' });
   }
 });
 
